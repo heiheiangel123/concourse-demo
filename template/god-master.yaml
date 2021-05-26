@@ -1,0 +1,75 @@
+{{- $root := .}}
+{{- $environment := $root.environment }}
+resource_types:
+- name: fly
+  type: docker-image
+  source:
+    username: ((registry-username))
+    password: ((registry-password))
+    repository: ((docker-registry))/platform/concourse-fly-resource
+    tag: latest
+resources:
+- name: fly
+  type: fly
+  source:
+    password: ((concourse-password))
+    team: ((concourse-team))
+    url: ((concourse-url))
+    username: ((concourse-username))
+    insecure: true
+- name: master-source
+  type: git
+  check_every: 2224h ## BB checkoutTime
+  source:
+    branch: ((branch))
+    uri: ssh://git@devstack.vgc.com.cn:7999/mss/c-815-master-dxc.git
+    private_key: |
+        ((plumber-id-rsa))
+{{- range $env := $environment }}
+- name: "foundation-env-source-{{ $env }}"
+  type: git
+  check_every: 2224h ## BB checkoutTime
+  source:
+    branch: {{ $env }}
+    uri: ssh://git@devstack.vgc.com.cn:7999/mss/c-815-master-conf-((project)).git
+    private_key: |
+        ((plumber-id-rsa))
+{{ end }}
+
+jobs:
+{{- range $env := $environment }}
+  - name: "create_master_pipline_for_{{ $env }}"
+    plan:
+    - in_parallel:
+      - get: master-source
+        params: {depth: 1}
+      - get: "foundation-env-source-{{ $env }}"
+        params: {depth: 1}
+    - task: prepare-terraform-variables-value
+      config:
+        platform: linux
+        image_resource:
+          type: docker-image
+          source:
+            repository: ((docker-registry))/plumber/recursive-gotpl
+            username: ((registry-username))
+            password: ((registry-password))
+            tag: latest
+        run:
+          path: sh
+          args:
+          - "./master-source/02_god/task/create-master.sh"
+        inputs:
+        - name: master-source
+          path: master-source
+        - name: "foundation-env-source-{{ $env }}" 
+          path: foundation-env-source
+        outputs:
+        - name: master-pipeline
+          path: ""
+    - in_parallel:
+      - put: fly
+        params:
+          options: set-pipeline -n -p "terraform-for-{{ $env }}" -c master-pipeline/terraform-pipeline.yaml -v project=((project)) -v branch=((branch))
+{{ end }}
+
