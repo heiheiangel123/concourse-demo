@@ -1,5 +1,6 @@
 #!/bin/bash
 
+mkdir master-pipeline
 #echo $varsfile
 
 if [ -f "foundation-env-source/values.sh" ]; then
@@ -8,8 +9,8 @@ if [ -f "foundation-env-source/values.sh" ]; then
   cd -
 fi
 
-/root/rgtpl -s /home/azureuser/learn-concourse-demo/pipelines/template -d /home/azureuser/learn-concourse-demo/pipelines/ -f /home/azureuser/learn-concourse-demo/pipelines/config/values.yaml
+/root/rgtpl -s master-source/template -d master-pipeline -f foundation-env-source/values.yaml
 
 ls -Rl /home/azureuser/learn-concourse-demo/pipelines
-#cat master-pipeline/*
+cat master-pipeline/*
 
